@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  trainer:
+    build:
+      context: ./ml/training
+      dockerfile: Dockerfile.train
+    volumes:
+      # Mount the entire ml directory so the dataset is available and checkpoints persist
+      - ./ml:/app/ml
