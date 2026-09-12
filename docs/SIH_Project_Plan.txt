@@ -1,0 +1,332 @@
+AI-Based Fake Identity & Document Screening System
+Smart India Hackathon — Project Plan, Architecture & Roadmap
+Field
+Detail
+Organization
+Ministry of Home Affairs
+Department
+Sashastra Seema Bal (SSB), Police II Division
+Category
+Software
+Theme
+Blockchain & Cybersecurity
+Document Purpose
+Build brief for AI coding agent (Antigravity) + team execution plan
+1. Original Problem Statement (Reference)
+1.1 Background
+Common challenges faced at border checkpoints:
+Fake passports and visas
+Altered photographs
+Modified dates of birth
+Tampered visa stamps
+Identity impersonation
+Multiple identities used by the same person
+Expired or blacklisted travel documents
+High passenger volume causing delays
+Current verification methods rely heavily on human inspection and basic database lookups.
+1.2 Detailed Description
+Border checkpoints process thousands of identity documents every day, including passports, visas, national identity cards, permits, and travel authorizations. Manual verification is time-consuming, prone to human error, and often unable to detect sophisticated forgeries, tampering, or identity fraud. The expected solution is an AI-powered document screening platform that automatically analyzes identity and travel documents, detects signs of tampering or forgery, validates information against rules and databases, and generates a risk score to assist border security personnel in making faster and more accurate decisions.
+1.3 Expected Solution — Modules
+Module 1: OCR Extraction — Automatically extract all relevant information from identity documents (passport, visa, national ID, driving license, permits).
+Module 2: Document Validation — Verify whether extracted information follows official document standards and rules.
+Module 3: Tampering Detection (Core AI Innovation) — Detect digitally or physically altered documents: photo replacement, text manipulation, stamp forgery, metadata analysis.
+Module 4: Face Verification — Ensure the document owner matches the presented individual.
+1.4 Expected Impact
+Reduce document verification time from several minutes to a few seconds
+Improve detection of forged and tampered documents
+Standardize screening decisions across checkpoints
+Enable data-driven risk assessment instead of purely manual inspection
+Create a digital trail for investigations and intelligence analysis
+2. Winning Strategy for SIH Judging
+SIH judges score on: novelty of AI approach, technical depth, feasibility, UI/UX polish, and real-world deployability for a government use case. Since you've chosen to custom-train your core models rather than wrap APIs, the differentiator is the 
+Tampering Detection module. This is explicitly called out as the 'Core AI Innovation' in the problem statement — it must be your most technically deep, most demo-able component. Everything else (OCR, validation, face match) can use strong pretrained/open-source building blocks, but should still be integrated into a coherent, custom pipeline rather than called as black-box paid APIs.
+Demo-readiness matters as much as accuracy. Judges will watch a 5–7 minute live or recorded demo. Prioritize: a clean end-to-end flow (upload → extract → validate → tamper score → face match → final risk score + explainability), a small labeled dataset of genuine vs. tampered sample documents you generate yourselves, and a dashboard that visually explains WHY a document was flagged (heatmaps, highlighted fields, confidence scores) — not just a pass/fail.
+Government relevance: Since this is for MHA/SSB, emphasize offline-capable deployment (border posts may have poor connectivity), audit trails, role-based access, and data localization/security — these map directly to the 'Blockchain & Cybersecurity' theme even if you don't build a full blockchain layer (see Section 6 for a lightweight, credible way to incorporate it).
+3. System Architecture
+3.1 High-Level Flow
+Document Capture — image upload or camera scan (passport/visa/ID/license/permit)
+Preprocessing — deskew, denoise, crop-to-document, resolution normalization
+OCR Extraction — field-level text extraction using layout-aware OCR
+Document Validation — rule engine checks (MRZ checksum, format rules, expiry, cross-field consistency)
+Tampering Detection — ELA, noise/metadata forensics, font & layout anomaly detection, custom CNN classifier
+Face Verification — face detection on document photo vs. live capture, embedding similarity
+Risk Scoring Engine — weighted fusion of all module outputs into a single explainable risk score
+Officer Dashboard — result display, evidence visualization, decision logging
+Audit & Ledger Layer — tamper-evident logging of every screening decision
+3.2 Architecture Diagram (Textual)
+Client (Web/Kiosk App) → API Gateway → Microservices [OCR Service | Validation Service | Tampering Detection Service | Face Verification Service] → Risk Fusion Engine → PostgreSQL (records) + Object Storage (images) + Audit Ledger (hash-chained log) → Dashboard/Reporting Layer.
+Recommend containerizing each AI module as an independent service (Docker) behind a FastAPI gateway — this is both good engineering practice to show judges and lets team members work in parallel without blocking each other.
+4. Detailed Tech Stack
+4.1 Frontend
+Layer
+Choice
+Why
+Framework
+React + TypeScript (Vite)
+Fast dev cycle, strong ecosystem, judges recognize it as production-grade
+UI Kit
+Tailwind CSS + shadcn/ui
+Rapid, polished, consistent design system
+State Mgmt
+TanStack Query + Zustand
+Clean async data handling for API calls
+File/Image Upload
+react-dropzone + browser camera API (getUserMedia)
+Supports both upload and live kiosk-style capture
+Visualization
+Recharts + custom SVG overlays
+Risk score charts, tamper heatmap overlays on document image
+4.2 Backend / API Layer
+Layer
+Choice
+Why
+API Framework
+FastAPI (Python)
+Native fit for ML model serving, async, auto-generated OpenAPI docs
+Auth
+JWT + role-based access (Officer / Admin / Auditor)
+Realistic for MHA/border-post deployment
+Task Queue
+Celery + Redis
+Offload heavy CV/ML inference from request thread
+Inter-service comm
+REST internally, or gRPC if time permits
+Simplicity first; gRPC as a stretch goal to show depth
+4.3 OCR Extraction Module
+Component
+Choice
+Notes
+Primary OCR engine
+PaddleOCR (PP-OCRv4) or Tesseract 5 (LSTM)
+PaddleOCR generally outperforms Tesseract on real-world/skewed document images
+Layout/field detection
+LayoutLMv3 (fine-tuned) or a custom YOLOv8 field-detector
+Detect and crop specific fields (name, DOB, passport no.) before OCR — big accuracy boost over full-page OCR
+MRZ parsing
+PassportEye (or custom MRZ regex + checksum validator)
+Passports/visas have a standardized Machine Readable Zone — huge reliability win, and checksum validation doubles as a tamper signal
+Post-processing
+Regex + fuzzy matching (rapidfuzz) for field normalization
+Correct minor OCR errors, standardize date formats
+4.4 Document Validation Module
+Component
+Choice
+Notes
+Rule engine
+Custom Python rules engine (or JSON-configurable rules)
+Field format checks, date logic (DOB < issue < expiry), document-type-specific templates
+MRZ checksum validation
+ICAO 9303 check-digit algorithm (custom implementation)
+Official passport MRZ standard — implementing this is a strong technical talking point
+Blacklist/DB check
+Mock relational DB of blacklisted/expired doc numbers
+Simulates NCRB/Interpol-style lookups for the demo
+Cross-document consistency
+Compare passport vs visa fields
+e.g., name/nationality must match across a traveler's document set
+4.5 Tampering Detection Module (Core Innovation)
+This is where custom training should be concentrated. Build it as an ensemble of specialized detectors rather than one monolithic model — each targets a distinct forgery signal, and together they let you explain to judges why a document was flagged, not just that it was.
+Detector
+Technique
+Model/Approach
+Copy-move / splicing forgery
+Error Level Analysis (ELA) + noise residual analysis
+Custom CNN (ResNet18/EfficientNet-B0 backbone) fine-tuned on ELA-transformed images, binary classifier: tampered vs. authentic
+Photo replacement detection
+Face-region boundary artifact detection + noise inconsistency between photo region and background
+Custom CNN trained on patches; compare noise statistics (PRNU-style) inside vs. outside photo bounding box
+Text/font manipulation
+Font consistency check + character spacing anomaly detection
+Compare detected font/stroke features across same-field characters using a lightweight CNN or classical CV (contour analysis)
+Stamp/seal forgery
+Template matching + custom object detector
+YOLOv8 fine-tuned to detect and localize stamps, then compare against a reference stamp embedding database (Siamese network)
+Metadata forensics
+EXIF/file metadata analysis
+Python (Pillow/exifread) — detect editing software signatures, inconsistent timestamps, missing expected metadata
+Fusion layer
+Gradient Boosted Trees (XGBoost) or small MLP
+Combines all detector confidence scores into one calibrated tamper probability + per-detector breakdown for explainability
+Dataset strategy: There is no public 'tampered passport' dataset for legal/security reasons, so you will need to generate your own. Take a small set of sample/dummy ID templates (create fictional dummy documents — never use real people's real documents), then programmatically create tampered versions: swap photo regions, edit text fields with GIMP/PIL scripting, paste altered stamps, recompress at different quality levels. This synthetic-forgery-generation pipeline is itself a strong technical contribution to show judges.
+Explainability: For every flagged document, output a heatmap (ELA visualization or Grad-CAM overlay) showing WHERE the model detected anomalies. This single feature disproportionately impresses judges because it turns a black-box score into an investigable result — exactly what a border officer needs.
+4.6 Face Verification Module
+Component
+Choice
+Notes
+Face detection
+RetinaFace or MTCNN
+Robust to document photo variations (small, low-res, ID-style)
+Face embedding
+ArcFace (InsightFace) — fine-tune final layers on ID-photo-style data if time permits
+Industry-standard embedding approach; fine-tuning shows customization beyond pure API use
+Matching
+Cosine similarity between document photo embedding and live capture embedding
+Threshold-tuned, with confidence score shown to officer
+Liveness (stretch goal)
+Simple blink/head-turn challenge or texture-based anti-spoofing (LBP)
+Prevents photo-of-a-photo spoofing — good stretch feature for extra marks
+Multiple identity detection
+Face embedding clustering across historical scan records
+Flags same face appearing under different names/document numbers — directly addresses 'multiple identities' pain point in the problem statement
+4.7 Risk Scoring & Fusion Engine
+Weighted scoring combining: OCR confidence, validation pass/fail count, tamper ensemble probability, face match score, blacklist hit
+Output: Low / Medium / High risk band + numeric score (0–100) + itemized reason list
+Configurable weights (JSON config) so SSB-style rule tuning is demonstrable live
+4.8 Data, Storage & Infrastructure
+Layer
+Choice
+Notes
+Primary DB
+PostgreSQL
+Structured records: travelers, documents, scan history, officer actions
+Object storage
+MinIO (self-hosted S3-compatible) or local disk for demo
+Document images, ELA heatmaps, evidence snapshots
+ML model serving
+TorchServe or plain FastAPI inference endpoints
+Simplicity for demo; TorchServe if you want to show MLOps maturity
+Containerization
+Docker + Docker Compose
+Each module as a service; easy for judges to see modular architecture
+CI/CD (stretch)
+GitHub Actions
+Shows engineering maturity, not essential for MVP
+4.9 Cybersecurity & 'Blockchain' Theme Alignment
+Since the theme is Blockchain & Cybersecurity, you should credibly address both without over-engineering a full blockchain network under hackathon time pressure:
+Tamper-evident audit ledger: Implement a hash-chained log (each screening decision record includes a hash of the previous record + its own data — a lightweight private blockchain / Merkle-style structure). This is realistic to build in the timeframe and directly demonstrates the 'blockchain' angle for creating an investigable digital trail.
+Cybersecurity practices: JWT auth, role-based access control, encrypted storage of document images at rest (AES-256), HTTPS/TLS, input sanitization against adversarial image uploads, rate limiting on the API gateway.
+Stretch goal: If time allows, use Hyperledger Fabric or a simple Ethereum testnet smart contract to anchor document-hash + decision records — mention this as a 'Phase 2' roadmap item even if not fully built, to show awareness without risking a half-broken demo.
+5. Full Feature List
+5.1 Must-Have (MVP for Demo)
+Upload/scan passport, visa, national ID, driving license, permit
+OCR extraction of all specified fields per document type
+MRZ parsing + checksum validation for passports/visas
+Rule-based document validation (format, date logic, expiry check)
+Tampering detection ensemble with per-detector confidence breakdown
+ELA/heatmap visual explanation of tamper regions
+Face detection + face match (document photo vs. live capture)
+Unified risk score (0–100) with Low/Medium/High banding and reasons
+Officer dashboard: upload → results → decision → log
+Mock blacklist/expired-document database check
+Audit trail (hash-chained log) of every screening event
+Role-based login (Officer / Admin / Auditor)
+5.2 High-Impact Add-Ons (if time permits)
+Multiple-identity detection via face embedding clustering across records
+Cross-document consistency check (passport vs visa vs prior records)
+Liveness detection (anti-spoofing) for the live capture step
+Analytics dashboard: fraud trends, flagged-document heatmap by checkpoint, volume stats
+Multi-language OCR support (Hindi/regional scripts on ID cards)
+Offline-first kiosk mode (local inference, sync when connected) — big plus for border-post realism
+Explainability report export (PDF) for investigation handoff
+5.3 Stretch / 'Wow Factor' Features
+Blockchain-anchored record hashing (Hyperledger/testnet) — Phase 2 roadmap item
+Active learning loop: officer feedback (confirmed fraud/false positive) retrains tamper model
+Mobile app version for handheld checkpoint scanning
+Integration mock with national databases (simulate Interpol SLTD / national ID registry API)
+6. Roadmap
+A realistic SIH build typically runs across a ~6–8 week window from team formation to final demo (adjust to your actual SIH internal-hackathon or grand-finale deadline). Roadmap below assumes 6 weeks with a 5–6 person team split across ML/CV, backend, frontend, and data/docs.
+Week 1 — Foundation & Data
+Finalize architecture (this document) and assign module owners
+Set up repo structure, Docker Compose skeleton, CI basics
+Design DB schema (travelers, documents, scans, decisions, audit log)
+Build synthetic dummy-document generator (fake passport/visa/ID templates)
+Generate initial tampered-vs-authentic dataset (start with 200–500 samples, augment later)
+Week 2 — OCR + Validation Core
+Integrate PaddleOCR/Tesseract pipeline with preprocessing (deskew/denoise)
+Build MRZ parser + ICAO checksum validator
+Implement field-level extraction for passport and visa (highest priority document types)
+Build rule-based validation engine (v1: format + date logic)
+Start basic React frontend shell (upload flow, routing, auth stub)
+Week 3 — Tampering Detection v1
+Train ELA-based CNN classifier on synthetic dataset (photo-splicing/copy-move detector)
+Implement metadata/EXIF forensics module
+Build heatmap/Grad-CAM visualization for tamper regions
+Expand tampered dataset (add font-manipulation and stamp-forgery samples)
+Backend: expose OCR + validation as FastAPI services, wire to frontend
+Week 4 — Tampering Detection v2 + Face Verification
+Train/fine-tune stamp forgery detector (YOLOv8 + Siamese matching)
+Build fusion layer (XGBoost) combining all tamper detector scores
+Integrate RetinaFace/MTCNN detection + ArcFace embeddings for face match
+Implement risk scoring engine (weighted fusion of all modules)
+Frontend: results dashboard with score breakdown, heatmap overlay, reason list
+Week 5 — Integration, Security Layer, Polish
+End-to-end integration testing across all modules
+Implement hash-chained audit ledger + role-based access control
+Add mock blacklist/expired-document DB check
+UI/UX polish: officer dashboard, loading states, error handling
+Start building demo script and presentation deck
+Week 6 — Testing, Demo Prep, Submission
+Stress-test with edge cases: blurry images, rotated documents, partial tampering
+Record demo video (backup for live demo failure risk)
+Prepare PPT: problem, architecture diagram, tech stack, live demo, impact, roadmap for Phase 2 (blockchain anchoring, offline kiosk, national DB integration)
+Rehearse live demo end-to-end at least 3 times
+Final SIH submission (report, video, PPT, GitHub repo with README)
+7. Build Brief for Antigravity (AI Coding Agent)
+Use this section as the direct prompt/spec when working in Antigravity. It's structured so you can feed it module-by-module rather than all at once — this generally produces more reliable output from AI coding agents than one giant prompt.
+7.1 Suggested Repo Structure
+ai-document-screening/
+frontend/                 — React + TS + Tailwind app
+backend/gateway/          — FastAPI API gateway, auth, routing
+backend/services/ocr/     — OCR extraction microservice
+backend/services/validation/ — Rule engine + MRZ checksum service
+backend/services/tamper/  — Tampering detection ensemble service
+backend/services/face/    — Face detection & verification service
+backend/services/risk/    — Risk fusion engine
+ml/training/              — Training scripts, notebooks for each model
+ml/data/                  — Synthetic dataset generator + sample data
+infra/                    — Docker Compose, DB migrations
+docs/                     — This plan, architecture diagrams, API specs
+7.2 Suggested Build Order (feed to Antigravity in this sequence)
+Scaffold repo structure + Docker Compose with empty service stubs and a Postgres container
+Build the synthetic dummy-document generator (fake passport/visa/ID images + programmatic tampering functions)
+Build OCR service: preprocessing → PaddleOCR/Tesseract → field extraction → MRZ parsing → checksum validation
+Build Validation service: rule engine consuming OCR output
+Build Tampering Detection service: start with ELA + CNN classifier, then layer in metadata forensics, then stamp/font detectors, then fusion model
+Build Face Verification service: detection + embedding + similarity matching
+Build Risk Fusion engine consuming outputs of steps 3–6
+Build API Gateway wiring all services together with auth
+Build React frontend: upload flow → results dashboard → officer decision → audit log view
+Add hash-chained audit ledger + RBAC
+Polish, edge-case testing, demo script
+7.3 Key Constraints to State to Antigravity
+Custom-trained models for tampering detection are required — do not substitute with a third-party paid API for this module, since it is the core innovation being judged
+Pretrained backbones (ResNet/EfficientNet/YOLOv8/ArcFace) may be used and fine-tuned — full training from scratch is not necessary or realistic in the timeframe
+All sample 'identity documents' used for training/demo must be entirely fictional/synthetic — never use real people's real government ID data
+Every module should expose a clear, documented REST API (FastAPI auto-docs) so modules can be built/tested independently by different team members
+Every AI decision must return an explainability payload (confidence scores, flagged regions/fields), not just a final label
+Target offline-capable inference (no mandatory external API calls at inference time) to match the border-checkpoint connectivity constraint in the problem statement
+8. Suggested Team Role Split (5–6 members)
+Role
+Owns
+Key Skills
+ML/CV Lead
+Tampering detection ensemble, model training pipeline
+PyTorch, OpenCV, CNN training
+ML Engineer
+OCR pipeline, MRZ parsing, face verification
+PaddleOCR/Tesseract, InsightFace
+Backend Engineer
+FastAPI services, DB schema, API gateway, auth
+Python, PostgreSQL, Docker
+Frontend Engineer
+React dashboard, upload flow, visualizations
+React, TypeScript, Tailwind
+Data/Infra Engineer
+Synthetic dataset generation, Docker Compose, audit ledger
+Python scripting, Docker, basic crypto/hashing
+Docs/PM (can double up)
+Architecture diagrams, PPT, demo script, SIH submission docs
+Communication, presentation design
+9. Key Risks & Mitigations
+Risk
+Mitigation
+No real tampered-document dataset available
+Build synthetic forgery generator early (Week 1) — treat it as a core deliverable, not a shortcut
+Custom CNN training underperforms with small dataset
+Use transfer learning from pretrained backbones + heavy data augmentation; keep the ensemble multi-signal so no single weak model tanks the whole score
+Live demo failure (camera/model loading issues)
+Always have a recorded backup demo video; pre-load models before live demo; test on the actual presentation hardware beforehand
+OCR accuracy drops on rotated/low-quality images
+Strong preprocessing (deskew, contrast normalization) + fallback manual-correction UI in the dashboard
+Scope creep across 4 modules + extras
+Lock MVP scope (Section 5.1) by end of Week 1; treat 5.2/5.3 as stretch only after MVP is stable

@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sih_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  gateway:
+    build:
+      context: ./backend/gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/sih_db
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ocr_service:
+    build:
+      context: ./backend/services/ocr
+    ports:
+      - "8001:8001"
+
+  validation_service:
+    build:
+      context: ./backend/services/validation
+    ports:
+      - "8002:8002"
+
+  tamper_service:
+    build:
+      context: ./backend/services/tamper
+    ports:
+      - "8003:8003"
+
+  face_service:
+    build:
+      context: ./backend/services/face
+    ports:
+      - "8004:8004"
+
+  risk_service:
+    build:
+      context: ./backend/services/risk
+    ports:
+      - "8005:8005"
+
+volumes:
+  postgres_data:
