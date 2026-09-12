@@ -28,12 +28,13 @@ try:
     
     # Try to load weights from the ml/training/checkpoints directory if mounted
     checkpoint_path = "/app/ml/training/checkpoints/tamper_resnet18.pth"
-    # Fallback to local relative if running locally outside docker
+    # Fallback to local absolute path if running locally outside docker
     if not os.path.exists(checkpoint_path):
-        checkpoint_path = "../../ml/training/checkpoints/tamper_resnet18.pth"
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        checkpoint_path = os.path.join(base_dir, "ml", "training", "checkpoints", "tamper_resnet18.pth")
         
     if os.path.exists(checkpoint_path):
-        model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+        model.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
         model.eval()
         print("Model loaded successfully.")
     else:

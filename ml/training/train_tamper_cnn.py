@@ -34,11 +34,10 @@ class TamperDataset(Dataset):
 def train_model():
     print("Setting up training pipeline...")
     
-    # Data paths relative to ml/training/
+    # Data paths relative to ml/training/ inside Docker
     auth_dir = "../data/dataset/authentic"
     tamp_dir = "../data/dataset/tampered"
     
-    # Transforms (ResNet expects 224x224 and standard normalization)
     data_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -49,18 +48,18 @@ def train_model():
     dataset = TamperDataset(auth_dir, tamp_dir, transform=data_transform)
     print(f"Loaded {len(dataset)} samples.")
     
-    # Quick train/val split (80/20)
+    if len(dataset) == 0:
+        print("Error: No data found. Run the data generator first.")
+        return
+        
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
     
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
     
-    # Initialize Pre-trained ResNet18
     model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-    
-    # Modify final layer for binary classification (authentic vs tampered)
     num_ftrs = model.fc.in_features
     model.fc = nn.Linear(num_ftrs, 2)
     
@@ -71,13 +70,12 @@ def train_model():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
-    num_epochs = 2 # Keeping it small for hackathon scaffold demonstration
+    num_epochs = 2 
     
     for epoch in range(num_epochs):
         print(f"\nEpoch {epoch+1}/{num_epochs}")
         print("-" * 10)
         
-        # Training Phase
         model.train()
         running_loss = 0.0
         running_corrects = 0
@@ -99,6 +97,25 @@ def train_model():
         epoch_loss = running_loss / train_size
         epoch_acc = running_corrects.double() / train_size
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
+        
+        # Validation Phase
+        model.eval()
+        val_loss = 0.0
+        val_corrects = 0
+        
+        with torch.no_grad():
+            for inputs, labels in tqdm(val_loader, desc="Validation"):
+                inputs, labels = inputs.to(device), labels.to(device)
+                outputs = model(inputs)
+                _, preds = torch.max(outputs, 1)
+                loss = criterion(outputs, labels)
+                
+                val_loss += loss.item() * inputs.size(0)
+                val_corrects += torch.sum(preds == labels.data)
+                
+        epoch_val_loss = val_loss / val_size
+        epoch_val_acc = val_corrects.double() / val_size
+        print(f"Val Loss: {epoch_val_loss:.4f} Acc: {epoch_val_acc:.4f}")
         
     print("\nTraining complete! Saving checkpoint...")
     os.makedirs('checkpoints', exist_ok=True)

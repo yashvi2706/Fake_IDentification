@@ -7,13 +7,15 @@ def compute_ela(img_path, quality=90, scale=10):
     This highlights areas of the image that have been saved at different compression levels,
     which is a strong indicator of splicing/copy-move forgery.
     """
+    import io
     original = Image.open(img_path).convert('RGB')
     
-    # Save to a temporary file at the given quality
-    tmp_path = 'temp_ela.jpg'
-    original.save(tmp_path, 'JPEG', quality=quality)
+    # Save to an in-memory buffer at the given quality
+    tmp_buffer = io.BytesIO()
+    original.save(tmp_buffer, 'JPEG', quality=quality)
+    tmp_buffer.seek(0)
     
-    compressed = Image.open(tmp_path).convert('RGB')
+    compressed = Image.open(tmp_buffer).convert('RGB')
     
     # Calculate the absolute difference between original and re-compressed
     ela_image = ImageChops.difference(original, compressed)
@@ -30,8 +32,9 @@ def compute_ela(img_path, quality=90, scale=10):
     # Enhance the difference
     ela_image = ImageEnhance.Brightness(ela_image).enhance(scale_factor * scale)
     
-    # Clean up temp file
-    if os.path.exists(tmp_path):
-        os.remove(tmp_path)
+    # Clean up memory
+    original.close()
+    compressed.close()
+    tmp_buffer.close()
         
     return ela_image, max_diff
