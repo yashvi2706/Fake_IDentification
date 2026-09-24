@@ -1,161 +1,89 @@
-"""
-model.py — Multi-head ResNet18 for tamper detection.
+"""Compact multi-signal tamper model for Colab T4 training."""
 
-Location: backend/services/tamper/cloud/
+from __future__ import annotations
 
-Architecture:
-  - Shared ResNet18 backbone (pretrained ImageNet) minus final FC
-  - 3 independent binary classification heads:
-    - head_photo: photo_replacement (0/1)
-    - head_text: text_manipulation (0/1)
-    - head_compression: compression_anomaly (0/1)
-
-Each head outputs 2 logits (authentic vs tampered) for CrossEntropyLoss.
-During inference, we take softmax[:, 1] as the "tampered" probability per head.
-"""
+from typing import Dict
 
 import torch
 import torch.nn as nn
 from torchvision import models
-from torchvision.models import ResNet18_Weights
 
 
-class MultiHeadResNet18(nn.Module):
+class CompactTamperNet(nn.Module):
     """
-    ResNet18 backbone with 3 binary classification heads.
-    
-    Forward returns dict of logits:
-    {
-        'photo_replacement': (B, 2),
-        'text_manipulation': (B, 2),
-        'compression_anomaly': (B, 2)
-    }
+    Compact dual-head model for ID tamper detection.
+
+    Input: 6 channels
+      - RGB (3)
+      - ELA (3)
+
+    Heads:
+      - photo_replacement: face-photo splice
+      - document_tamper: non-face/global tamper
     """
 
-    def __init__(self, pretrained=True):
+    def __init__(self, pretrained: bool = True, freeze_backbone: bool = True):
         super().__init__()
+        backbone = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
 
-        # Load backbone
-        if pretrained:
-            backbone = models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
-        else:
-            backbone = models.resnet18(weights=None)
+        conv1_w = backbone.conv1.weight.data.clone()
+        backbone.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        with torch.no_grad():
+            backbone.conv1.weight[:, :3] = conv1_w
+            backbone.conv1.weight[:, 3:] = conv1_w
 
-        # Remove the final FC layer — keep everything up to avgpool
-        self.features = nn.Sequential(*list(backbone.children())[:-1])
+        self.backbone = nn.Sequential(*list(backbone.children())[:-1])
 
-        # Feature dimension from ResNet18 = 512
         feat_dim = 512
-
-        # 3 independent binary classification heads
-        self.head_photo = nn.Sequential(
-            nn.Dropout(0.3),
+        self.photo_head = nn.Sequential(
+            nn.Dropout(0.25),
             nn.Linear(feat_dim, 128),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
+            nn.Dropout(0.15),
+            nn.Linear(128, 2),
+        )
+        self.doc_head = nn.Sequential(
+            nn.Dropout(0.25),
+            nn.Linear(feat_dim, 128),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.15),
             nn.Linear(128, 2),
         )
 
-        self.head_text = nn.Sequential(
-            nn.Dropout(0.3),
-            nn.Linear(feat_dim, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(128, 2),
-        )
+        if freeze_backbone:
+            for p in self.backbone.parameters():
+                p.requires_grad = False
 
-        self.head_compression = nn.Sequential(
-            nn.Dropout(0.3),
-            nn.Linear(feat_dim, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(128, 2),
-        )
-
-    def forward(self, x):
-        # Shared feature extraction
-        features = self.features(x)       # (B, 512, 1, 1)
-        features = features.flatten(1)    # (B, 512)
-
+    def forward(self, x6: torch.Tensor) -> Dict[str, torch.Tensor]:
+        feat = self.backbone(x6).flatten(1)
         return {
-            "photo_replacement": self.head_photo(features),
-            "text_manipulation": self.head_text(features),
-            "compression_anomaly": self.head_compression(features),
+            "photo_replacement": self.photo_head(feat),
+            "document_tamper": self.doc_head(feat),
         }
 
-    def predict_probabilities(self, x):
-        """
-        Inference helper — returns sigmoid/softmax probabilities for each head.
-        Returns dict of (B,) tensors with tampered probability.
-        """
-        self.eval()
-        with torch.no_grad():
-            logits = self.forward(x)
-            probs = {}
-            for head_name, head_logits in logits.items():
-                p = torch.nn.functional.softmax(head_logits, dim=1)[:, 1]
-                probs[head_name] = p
-            return probs
 
+class MultiTaskCrossEntropy(nn.Module):
+    """Masked CE: labels can be -1 for unavailable head."""
 
-def masked_cross_entropy_loss(logits_dict, labels_dict):
-    """
-    Compute CrossEntropyLoss only on samples where label != -1 (not masked).
-    
-    Args:
-        logits_dict: dict of head_name -> (B, 2) logits
-        labels_dict: dict of head_name -> (B,) LongTensor with values 0, 1, or -1
-    
-    Returns:
-        total_loss: scalar tensor (mean of all non-masked losses)
-        per_head_loss: dict of head_name -> scalar loss (or 0 if all masked)
-    """
-    criterion = nn.CrossEntropyLoss(reduction="mean")
-    total_loss = torch.tensor(0.0, device=next(iter(logits_dict.values())).device, requires_grad=True)
-    per_head_loss = {}
-    num_active_heads = 0
+    def __init__(self):
+        super().__init__()
+        self.criterion = nn.CrossEntropyLoss()
 
-    for head_name in logits_dict:
-        logits = logits_dict[head_name]      # (B, 2)
-        labels = labels_dict[head_name]      # (B,)
+    def forward(self, logits: Dict[str, torch.Tensor], labels: Dict[str, torch.Tensor]):
+        total = None
+        details = {}
+        n = 0
+        for head, pred in logits.items():
+            y = labels[head]
+            m = y != -1
+            if m.sum() == 0:
+                details[head] = 0.0
+                continue
+            loss = self.criterion(pred[m], y[m])
+            total = loss if total is None else total + loss
+            details[head] = float(loss.item())
+            n += 1
 
-        # Mask: only keep samples where label != -1
-        mask = labels != -1
-        if mask.sum() == 0:
-            per_head_loss[head_name] = 0.0
-            continue
-
-        masked_logits = logits[mask]
-        masked_labels = labels[mask]
-
-        head_loss = criterion(masked_logits, masked_labels)
-        per_head_loss[head_name] = head_loss.item()
-        total_loss = total_loss + head_loss
-        num_active_heads += 1
-
-    if num_active_heads > 0:
-        total_loss = total_loss / num_active_heads
-
-    return total_loss, per_head_loss
-
-
-def compute_per_head_accuracy(logits_dict, labels_dict):
-    """
-    Compute accuracy per head, ignoring masked samples.
-    Returns dict of head_name -> accuracy (float) or None if all masked.
-    """
-    accuracies = {}
-    for head_name in logits_dict:
-        logits = logits_dict[head_name]
-        labels = labels_dict[head_name]
-
-        mask = labels != -1
-        if mask.sum() == 0:
-            accuracies[head_name] = None
-            continue
-
-        preds = logits[mask].argmax(dim=1)
-        correct = (preds == labels[mask]).float().mean().item()
-        accuracies[head_name] = correct
-
-    return accuracies
+        if total is None:
+            return torch.tensor(0.0, device=next(iter(logits.values())).device, requires_grad=True), details
+        return total / max(1, n), details
