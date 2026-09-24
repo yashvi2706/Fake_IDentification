@@ -7,14 +7,14 @@ import uuid
 import os
 from typing import Optional
 
-from ..schemas.analysis import AnalysisResponse, ErrorDetail
-from ..services.mock_services import (
+from schemas.analysis import AnalysisResponse, ErrorDetail
+from services.mock_services import (
     mock_extract_document_data,
     mock_validate_document,
     mock_analyze_tampering
 )
-from ..services.face_service import verify_faces
-from ..services.risk_service import calculate_risk
+from services.face_service import verify_faces
+from services.risk_service import calculate_risk
 
 router = APIRouter()
 
