@@ -1,0 +1,8 @@
+torch>=2.0
+torchvision>=0.15
+kaggle
+Pillow>=9.0
+pandas
+tqdm
+scikit-learn
+numpy
