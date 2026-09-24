@@ -12,7 +12,7 @@ from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 
 
-# ── OCR ──────────────────────────────────────────────────────────────
+# -- OCR --------------------------------------------------------------
 
 class OCRResult(BaseModel):
     """Fields extracted by the OCR / data-extraction service."""
@@ -28,7 +28,7 @@ class OCRResult(BaseModel):
         extra = "allow"                       # forward any extra keys from OCR
 
 
-# ── Validation ───────────────────────────────────────────────────────
+# -- Validation -------------------------------------------------------
 
 class ValidationCheck(BaseModel):
     name: str
@@ -42,7 +42,7 @@ class ValidationResult(BaseModel):
     checks: List[ValidationCheck] = Field(default_factory=list)
 
 
-# ── Tampering ────────────────────────────────────────────────────────
+# -- Tampering --------------------------------------------------------
 
 class TamperingResult(BaseModel):
     score: float = 0.0
@@ -54,7 +54,7 @@ class TamperingResult(BaseModel):
     indicators: List[str] = Field(default_factory=list)
 
 
-# ── Face Verification ────────────────────────────────────────────────
+# -- Face Verification ------------------------------------------------
 
 class FaceVerificationResult(BaseModel):
     available: bool = False
@@ -65,7 +65,7 @@ class FaceVerificationResult(BaseModel):
     message: str = ""
 
 
-# ── Risk ─────────────────────────────────────────────────────────────
+# -- Risk -------------------------------------------------------------
 
 class RiskReason(BaseModel):
     factor: str
@@ -80,7 +80,7 @@ class RiskResult(BaseModel):
     reasons: List[RiskReason] = Field(default_factory=list)
 
 
-# ── Unified Response ─────────────────────────────────────────────────
+# -- Unified Response -------------------------------------------------
 
 class AnalysisResponse(BaseModel):
     """Top-level response returned by POST /api/analyze."""
@@ -93,7 +93,7 @@ class AnalysisResponse(BaseModel):
     risk: RiskResult
 
 
-# ── Error response helper ────────────────────────────────────────────
+# -- Error response helper --------------------------------------------
 
 class ErrorDetail(BaseModel):
     detail: str
