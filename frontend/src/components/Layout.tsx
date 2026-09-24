@@ -1,46 +1,41 @@
-import React from 'react'
-import { Outlet, Link, useNavigate } from 'react-router-dom'
-import { Shield, Upload as UploadIcon, LayoutDashboard, LogOut } from 'lucide-react'
+import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Shield } from 'lucide-react';
 
 export default function Layout() {
-  const navigate = useNavigate()
-
-  const handleLogout = () => {
-    navigate('/login')
-  }
+  const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-secondary flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-card border-r border-border flex flex-col">
-        <div className="p-6 flex items-center gap-3 border-b border-border">
-          <Shield className="w-8 h-8 text-primary" />
-          <h1 className="font-bold text-lg leading-tight">Identity Screening<br/>System</h1>
+    <div className="min-h-screen flex flex-col">
+      {/* Top Navigation */}
+      <header className="border-b border-[var(--sentinel-rule)] bg-[var(--sentinel-surface)]">
+        <div className="max-w-[var(--sentinel-content-max)] mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Shield className="w-6 h-6 text-[var(--sentinel-accent)]" />
+            <span className="font-semibold text-[var(--sentinel-text)] tracking-wide">SENTINEL</span>
+          </div>
+          <nav className="flex items-center gap-8">
+            <Link 
+              to="/dashboard" 
+              className={`text-sm font-medium transition-colors hover:text-[var(--sentinel-text)] ${location.pathname === '/dashboard' ? 'text-[var(--sentinel-accent)]' : 'text-[var(--sentinel-text-muted)]'}`}
+            >
+              Dashboard
+            </Link>
+            <Link 
+              to="/screening/new" 
+              className="sentinel-primary-action inline-flex items-center justify-center text-decoration-none"
+            >
+              New Screening
+            </Link>
+          </nav>
         </div>
-        
-        <nav className="flex-1 p-4 space-y-2">
-          <Link to="/upload" className="flex items-center gap-3 px-4 py-3 text-muted-foreground hover:bg-secondary hover:text-foreground rounded-md transition-colors">
-            <UploadIcon className="w-5 h-5" />
-            <span className="font-medium">Document Upload</span>
-          </Link>
-          <Link to="/dashboard" className="flex items-center gap-3 px-4 py-3 text-muted-foreground hover:bg-secondary hover:text-foreground rounded-md transition-colors">
-            <LayoutDashboard className="w-5 h-5" />
-            <span className="font-medium">Results Dashboard</span>
-          </Link>
-        </nav>
-
-        <div className="p-4 border-t border-border">
-          <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-3 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md transition-colors">
-            <LogOut className="w-5 h-5" />
-            <span className="font-medium">Logout</span>
-          </button>
-        </div>
-      </aside>
+      </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <Outlet />
+      <main className="flex-1 overflow-auto bg-[var(--sentinel-canvas)] bg-[image:var(--sentinel-atmosphere)] bg-no-repeat bg-fixed">
+        <div className="max-w-[var(--sentinel-content-max)] mx-auto px-6 py-12">
+          <Outlet />
+        </div>
       </main>
     </div>
-  )
+  );
 }

@@ -1,76 +1,106 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
+  .sentinel-theme {
+    color-scheme: dark;
+    --sentinel-canvas: #09120e;
+    --sentinel-canvas-deep: #070e0a;
+    --sentinel-surface: #101c15;
+    --sentinel-surface-raised: #16231b;
+    --sentinel-image-surface: #132118;
+    --sentinel-portrait-surface: #243429;
+    --sentinel-text: #efece2;
+    --sentinel-text-muted: #a4aaa0;
+    --sentinel-accent: #bad3a6;
+    --sentinel-accent-ink: #172415;
+    --sentinel-accent-hover: #c8dfb8;
+    --sentinel-positive: #b0cba1;
+    --sentinel-positive-tint: rgb(172 198 158 / 7.5%);
+    --sentinel-caution: #d9b77f;
+    --sentinel-caution-tint: rgb(217 183 127 / 8%);
+    --sentinel-critical: #d79a90;
+    --sentinel-critical-tint: rgb(215 154 144 / 8%);
+    --sentinel-rule: rgb(214 229 204 / 13%);
+    --sentinel-focus: #bad3a6;
+    --sentinel-font-display: "Instrument Serif", Georgia, serif;
+    --sentinel-font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
+    --sentinel-font-mono: Consolas, "SFMono-Regular", monospace;
+    --sentinel-space-1: 4px;
+    --sentinel-space-2: 8px;
+    --sentinel-space-3: 12px;
+    --sentinel-space-4: 16px;
+    --sentinel-space-5: 20px;
+    --sentinel-space-6: 24px;
+    --sentinel-space-7: 28px;
+    --sentinel-space-8: 32px;
+    --sentinel-space-10: 40px;
+    --sentinel-space-12: 48px;
+    --sentinel-space-16: 64px;
+    --sentinel-space-20: 80px;
+    --sentinel-radius-action: 5px;
+    --sentinel-radius-image: 10px;
+    --sentinel-radius-menu: 6px;
+    --sentinel-content-max: 1240px;
+    --sentinel-control-height: 48px;
+    --sentinel-touch-min: 44px;
+    --sentinel-document-shadow: 0 24px 45px rgb(0 0 0 / 20%);
+    --sentinel-atmosphere: radial-gradient(
+      ellipse 620px 530px at 87% 15%,
+      rgb(84 120 55 / 9.5%),
+      transparent 80%
+    );
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+  body {
+    @apply bg-[#09120e] text-[#efece2] font-sans antialiased;
+    font-family: var(--sentinel-font-body);
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
+@layer components {
+  .sentinel-display {
+    font-family: var(--sentinel-font-display);
+    font-weight: 400;
+    line-height: 1.03;
   }
-  body {
-    @apply bg-background text-foreground;
+  
+  .sentinel-primary-action {
+    min-height: var(--sentinel-control-height);
+    padding: 12px 22px;
+    border: 1px solid transparent;
+    border-radius: var(--sentinel-radius-action);
+    background: var(--sentinel-accent);
+    color: var(--sentinel-accent-ink);
+    font: 600 12px/1.5 var(--sentinel-font-body);
+    transition: all 0.2s ease;
+  }
+  
+  .sentinel-primary-action:hover:not(:disabled) {
+    background: var(--sentinel-accent-hover);
+  }
+  
+  .sentinel-primary-action:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+  }
+
+  .sentinel-secondary-action {
+    min-height: var(--sentinel-control-height);
+    padding: 12px 22px;
+    border: 1px solid var(--sentinel-rule);
+    border-radius: var(--sentinel-radius-action);
+    background: transparent;
+    color: var(--sentinel-text);
+    font: 600 12px/1.5 var(--sentinel-font-body);
+    transition: all 0.2s ease;
+  }
+
+  .sentinel-secondary-action:hover:not(:disabled) {
+    background: var(--sentinel-surface-raised);
+  }
+  
+  :is(button, input, select, a, summary):focus-visible {
+    outline: 2px solid var(--sentinel-focus);
+    outline-offset: 5px;
   }
 }
