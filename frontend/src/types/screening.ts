@@ -53,6 +53,24 @@ export interface RiskFactors {
   reasons: RiskReason[];  // objects, not strings
 }
 
+export interface QualityResults {
+  score: number;
+  acceptable: boolean;
+  blur_score: number;
+  glare_score: number;
+  brightness_score: number;
+  resolution_ok: boolean;
+  document_visible: boolean;
+  issues: string[];
+}
+
+export interface TemplateResults {
+  available: boolean;
+  score: number;
+  layout_consistent?: boolean | null;
+  checks: ValidationCheck[];
+}
+
 export interface ScreeningResponse {
   screening_id: string;
   document_type: string;
@@ -61,6 +79,8 @@ export interface ScreeningResponse {
   tampering: TamperingResults;
   face_verification: FaceVerification;
   risk: RiskFactors;
+  quality?: QualityResults;
+  template?: TemplateResults;
 }
 
 export interface ScreeningSummary {

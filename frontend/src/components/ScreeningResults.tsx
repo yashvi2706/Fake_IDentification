@@ -115,6 +115,68 @@ export default function ScreeningResults({ results, onReset }: Props) {
         {/* Right Column (Secondary / Meta) */}
         <div className="lg:col-span-4 space-y-12 lg:border-l lg:border-[var(--sentinel-rule)] lg:pl-12">
           
+          {/* Image Quality */}
+          {results.quality && (
+            <section>
+              <h2 className="sentinel-display text-2xl mb-6 border-b border-[var(--sentinel-rule)] pb-4">Image Quality</h2>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-[var(--sentinel-text-muted)]">Acceptable</span>
+                  <span className={results.quality.acceptable ? 'text-[var(--sentinel-positive)]' : 'text-[var(--sentinel-critical)]'}>
+                    {results.quality.acceptable ? 'PASS' : 'FAIL'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-[var(--sentinel-text-muted)]">Blur/Sharpness Score</span>
+                  <span className="text-[var(--sentinel-text)]">{results.quality.blur_score.toFixed(1)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-[var(--sentinel-text-muted)]">Glare Detected</span>
+                  <span className={results.quality.glare_score > 5 ? 'text-[var(--sentinel-caution)]' : 'text-[var(--sentinel-text)]'}>
+                    {results.quality.glare_score.toFixed(1)}%
+                  </span>
+                </div>
+                {(results.quality.issues ?? []).length > 0 && (
+                  <div className="pt-4 mt-4 border-t border-[var(--sentinel-rule)]">
+                    <div className="text-sm text-[var(--sentinel-text-muted)] mb-2">Issues:</div>
+                    <ul className="list-disc pl-4 text-sm text-[var(--sentinel-critical)] space-y-1">
+                      {(results.quality.issues ?? []).map((issue, i) => (
+                        <li key={i}>{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Template Analysis */}
+          {results.template && results.template.available && (
+            <section>
+              <h2 className="sentinel-display text-2xl mb-6 border-b border-[var(--sentinel-rule)] pb-4">Template Validation</h2>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-[var(--sentinel-text-muted)]">Layout Consistency</span>
+                  <span className={results.template.layout_consistent ? 'text-[var(--sentinel-positive)]' : 'text-[var(--sentinel-critical)]'}>
+                    {results.template.layout_consistent ? 'PASS' : 'FAIL'}
+                  </span>
+                </div>
+                {(results.template.checks ?? []).length > 0 && (
+                  <div className="pt-4 mt-4 border-t border-[var(--sentinel-rule)] space-y-3">
+                    {(results.template.checks ?? []).map((check, idx) => (
+                       <div key={idx} className="text-sm">
+                          <div className={`font-medium ${check.status === 'pass' ? 'text-[var(--sentinel-positive)]' : check.status === 'warn' ? 'text-[var(--sentinel-caution)]' : 'text-[var(--sentinel-critical)]'}`}>
+                            {check.name}
+                          </div>
+                          <div className="text-[var(--sentinel-text-muted)] mt-0.5 text-xs">{check.message}</div>
+                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* Tampering Detection */}
           <section>
             <h2 className="sentinel-display text-2xl mb-6 border-b border-[var(--sentinel-rule)] pb-4">Tampering Analysis</h2>

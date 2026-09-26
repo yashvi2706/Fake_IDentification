@@ -58,6 +58,22 @@ function normalizeAnalysisResponse(raw: any): ScreeningResponse {
       decision: raw?.risk?.decision ?? 'CLEAR',
       reasons,
     },
+    quality: raw?.quality ? {
+      score: raw.quality.score ?? 0,
+      acceptable: raw.quality.acceptable ?? true,
+      blur_score: raw.quality.blur_score ?? 0,
+      glare_score: raw.quality.glare_score ?? 0,
+      brightness_score: raw.quality.brightness_score ?? 0,
+      resolution_ok: raw.quality.resolution_ok ?? true,
+      document_visible: raw.quality.document_visible ?? true,
+      issues: Array.isArray(raw.quality.issues) ? raw.quality.issues : [],
+    } : undefined,
+    template: raw?.template ? {
+      available: raw.template.available ?? false,
+      score: raw.template.score ?? 0,
+      layout_consistent: raw.template.layout_consistent ?? null,
+      checks: Array.isArray(raw.template.checks) ? raw.template.checks : [],
+    } : undefined,
   };
 }
 
