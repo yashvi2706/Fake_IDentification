@@ -1,17 +1,17 @@
 export interface OCRResults {
-  name: string;
-  document_number: string;
-  nationality: string;
-  date_of_birth: string;
-  date_of_expiry: string;
-  gender: string;
+  name?: string | null;
+  document_number?: string | null;
+  nationality?: string | null;
+  date_of_birth?: string | null;
+  date_of_expiry?: string | null;
+  gender?: string | null;
   confidence: number;
-  [key: string]: any; // For flexible visa fields
+  [key: string]: any;
 }
 
 export interface ValidationCheck {
   name: string;
-  status: 'pass' | 'fail' | 'warning';
+  status: 'pass' | 'fail' | 'warn' | 'warning';
   message: string;
 }
 
@@ -33,10 +33,16 @@ export interface TamperingResults {
 
 export interface FaceVerification {
   available: boolean;
-  face_detected_document: boolean;
-  face_detected_live: boolean;
-  match: boolean;
-  similarity: number;
+  face_detected_document?: boolean | null;
+  face_detected_live?: boolean | null;
+  match?: boolean | null;
+  similarity?: number | null;
+  message: string;
+}
+
+export interface RiskReason {
+  factor: string;
+  points: number;
   message: string;
 }
 
@@ -44,7 +50,7 @@ export interface RiskFactors {
   score: number;
   level: 'LOW' | 'REVIEW' | 'HIGH';
   decision: 'CLEAR' | 'MANUAL_REVIEW' | 'ESCALATE';
-  reasons: string[];
+  reasons: RiskReason[];  // objects, not strings
 }
 
 export interface ScreeningResponse {
@@ -65,3 +71,4 @@ export interface ScreeningSummary {
   decision: 'CLEAR' | 'MANUAL_REVIEW' | 'ESCALATE';
   timestamp: string;
 }
+

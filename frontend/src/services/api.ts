@@ -1,10 +1,65 @@
-import type { ScreeningResponse } from '../types/screening';
+import type { ScreeningResponse, RiskReason } from '../types/screening';
 import { analyzeDocumentMock } from './mockApi';
 
 // USE_MOCK_API is false unless explicitly set to 'true'
 // IMPORTANT: Vite bakes env vars at BUILD TIME.
 // If VITE_USE_MOCK_API is not set in Vercel → import.meta.env.VITE_USE_MOCK_API is undefined → false → real API
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true';
+
+/**
+ * Normalize the raw backend response to guarantee safe defaults for every field.
+ * Prevents React render crashes from null arrays, wrong numeric formats, etc.
+ */
+function normalizeAnalysisResponse(raw: any): ScreeningResponse {
+  // Normalize risk reasons: backend sends [{factor,points,message}], type was wrongly string[]
+  const rawReasons: any[] = Array.isArray(raw?.risk?.reasons) ? raw.risk.reasons : [];
+  const reasons: RiskReason[] = rawReasons.map((r: any) =>
+    typeof r === 'string'
+      ? { factor: 'unknown', points: 0, message: r }
+      : { factor: r?.factor ?? 'unknown', points: Number(r?.points ?? 0), message: r?.message ?? String(r) }
+  );
+
+  // Normalize OCR confidence: backend may return 0-1 or 0-100
+  const rawConf = raw?.ocr?.confidence ?? 0;
+  const confidence = rawConf > 1 ? rawConf / 100 : rawConf;
+
+  return {
+    screening_id: raw?.screening_id ?? 'UNKNOWN',
+    document_type: raw?.document_type ?? 'unknown',
+    ocr: {
+      ...(raw?.ocr ?? {}),
+      confidence,
+    },
+    validation: {
+      valid: raw?.validation?.valid ?? false,
+      score: raw?.validation?.score ?? 0,
+      checks: Array.isArray(raw?.validation?.checks) ? raw.validation.checks : [],
+    },
+    tampering: {
+      score: raw?.tampering?.score ?? 0,
+      suspicious: raw?.tampering?.suspicious ?? false,
+      photo_replacement: raw?.tampering?.photo_replacement ?? false,
+      text_manipulation: raw?.tampering?.text_manipulation ?? false,
+      metadata_anomaly: raw?.tampering?.metadata_anomaly ?? false,
+      compression_anomaly: raw?.tampering?.compression_anomaly ?? false,
+      indicators: Array.isArray(raw?.tampering?.indicators) ? raw.tampering.indicators : [],
+    },
+    face_verification: {
+      available: raw?.face_verification?.available ?? false,
+      face_detected_document: raw?.face_verification?.face_detected_document ?? null,
+      face_detected_live: raw?.face_verification?.face_detected_live ?? null,
+      match: raw?.face_verification?.match ?? null,
+      similarity: raw?.face_verification?.similarity ?? null,
+      message: raw?.face_verification?.message ?? '',
+    },
+    risk: {
+      score: raw?.risk?.score ?? 0,
+      level: raw?.risk?.level ?? 'LOW',
+      decision: raw?.risk?.decision ?? 'CLEAR',
+      reasons,
+    },
+  };
+}
 
 export const analyzeDocument = async (
   documentFile: File,
@@ -38,7 +93,6 @@ export const analyzeDocument = async (
   }
 
   if (!response.ok) {
-    // Read error body for debugging
     let errorDetail = `HTTP ${response.status} ${response.statusText}`;
     try {
       const errJson = await response.json();
@@ -53,6 +107,9 @@ export const analyzeDocument = async (
     throw new Error(errorDetail);
   }
 
-  return response.json();
+  const raw = await response.json();
+  console.log('[API] Raw response:', raw);
+  return normalizeAnalysisResponse(raw);
 };
+
 

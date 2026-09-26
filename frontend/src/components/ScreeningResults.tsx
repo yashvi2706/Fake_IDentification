@@ -54,12 +54,12 @@ export default function ScreeningResults({ results, onReset }: Props) {
           {/* Risk Factors */}
           <section>
             <h2 className="sentinel-display text-3xl mb-6">Risk Factors</h2>
-            {results.risk.reasons.length > 0 ? (
+            {(results.risk.reasons ?? []).length > 0 ? (
               <ul className="space-y-4">
-                {results.risk.reasons.map((reason, idx) => (
+                {(results.risk.reasons ?? []).map((reason, idx) => (
                   <li key={idx} className="flex items-start gap-3 p-4 bg-[var(--sentinel-critical-tint)] border border-[var(--sentinel-critical)] border-opacity-20 rounded-md">
                     <AlertTriangle className="w-5 h-5 text-[var(--sentinel-critical)] shrink-0 mt-0.5" />
-                    <span className="text-[var(--sentinel-text)]">{reason}</span>
+                    <span className="text-[var(--sentinel-text)]">{reason.message}</span>
                   </li>
                 ))}
               </ul>
@@ -75,19 +75,20 @@ export default function ScreeningResults({ results, onReset }: Props) {
           <section>
             <h2 className="sentinel-display text-3xl mb-6">Extracted Data</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              {Object.entries(results.ocr).map(([key, value]) => {
-                if (key === 'confidence') return null;
+              {Object.entries(results.ocr ?? {}).map(([key, value]) => {
+                if (key === 'confidence' || key === 'raw_text' || key === 'error') return null;
+                const display = (value === null || value === undefined || value === '') ? 'Not extracted' : String(value);
                 return (
                   <div key={key} className="border-b border-[var(--sentinel-rule)] pb-2">
                     <div className="text-xs text-[var(--sentinel-text-muted)] uppercase tracking-wider mb-1">{key.replace(/_/g, ' ')}</div>
-                    <div className="text-lg text-[var(--sentinel-text)] font-medium">{String(value)}</div>
+                    <div className={`text-lg font-medium ${display === 'Not extracted' ? 'text-[var(--sentinel-text-muted)] italic text-base' : 'text-[var(--sentinel-text)]'}`}>{display}</div>
                   </div>
                 );
               })}
             </div>
             <div className="mt-6 flex items-center gap-2 text-sm text-[var(--sentinel-text-muted)]">
               <span className="w-2 h-2 rounded-full bg-[var(--sentinel-positive)]"></span>
-              Extraction Confidence: {(results.ocr.confidence * 100).toFixed(0)}%
+              Extraction Confidence: {((results.ocr?.confidence ?? 0) * 100).toFixed(0)}%
             </div>
           </section>
 
@@ -95,7 +96,7 @@ export default function ScreeningResults({ results, onReset }: Props) {
           <section>
             <h2 className="sentinel-display text-3xl mb-6">Document Validation</h2>
             <div className="space-y-4">
-              {results.validation.checks.map((check, idx) => (
+              {(results.validation?.checks ?? []).map((check, idx) => (
                 <div key={idx} className="flex items-start gap-4 py-3 border-b border-[var(--sentinel-rule)] last:border-0">
                   {check.status === 'pass' && <CheckCircle2 className="w-5 h-5 text-[var(--sentinel-positive)] shrink-0" />}
                   {check.status === 'warning' && <AlertTriangle className="w-5 h-5 text-[var(--sentinel-caution)] shrink-0" />}
@@ -137,11 +138,11 @@ export default function ScreeningResults({ results, onReset }: Props) {
                 </span>
               </div>
               
-              {results.tampering.indicators.length > 0 && (
+              {(results.tampering?.indicators ?? []).length > 0 && (
                 <div className="pt-4 mt-4 border-t border-[var(--sentinel-rule)]">
                   <div className="text-sm text-[var(--sentinel-text-muted)] mb-2">Indicators:</div>
                   <ul className="list-disc pl-4 text-sm text-[var(--sentinel-critical)] space-y-1">
-                    {results.tampering.indicators.map((ind, i) => (
+                    {(results.tampering?.indicators ?? []).map((ind, i) => (
                       <li key={i}>{ind}</li>
                     ))}
                   </ul>
@@ -156,7 +157,9 @@ export default function ScreeningResults({ results, onReset }: Props) {
             {results.face_verification.available ? (
               <div className="space-y-4">
                 <div className="text-4xl sentinel-display mb-4 text-[var(--sentinel-text)]">
-                  {(results.face_verification.similarity * 100).toFixed(0)}%
+                  {results.face_verification.similarity != null
+                    ? `${(results.face_verification.similarity * 100).toFixed(0)}%`
+                    : 'Unavailable'}
                 </div>
                 <div className="text-sm">
                   {results.face_verification.match ? (

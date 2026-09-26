@@ -2,6 +2,7 @@ import { useState } from 'react';
 import UploadPanel from '../components/UploadPanel';
 import AnalysisProgress from '../components/AnalysisProgress';
 import ScreeningResults from '../components/ScreeningResults';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { analyzeDocument } from '../services/api';
 import type { ScreeningResponse } from '../types/screening';
 import { ArrowLeft } from 'lucide-react';
@@ -54,7 +55,12 @@ export default function ScreeningFlow() {
       {currentStep === 'upload' && <UploadPanel onAnalyze={handleAnalyze} />}
       {currentStep === 'analyzing' && <AnalysisProgress />}
       {currentStep === 'results' && results && (
-        <ScreeningResults results={results} onReset={handleReset} />
+        <ErrorBoundary
+          fallbackMessage="Unable to display analysis results."
+          onReset={handleReset}
+        >
+          <ScreeningResults results={results} onReset={handleReset} />
+        </ErrorBoundary>
       )}
       
       {error && (
