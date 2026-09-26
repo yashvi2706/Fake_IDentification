@@ -208,15 +208,20 @@ def _copy_move_score(image_path: str) -> Tuple[float, str]:
             h, w = img.shape
 
         b = COPY_BLOCK
+        step = b // 2  # Overlapping blocks for stronger detection
         blocks: Dict[bytes, int] = {}
         duplicates = 0
 
-        for y in range(0, h - b, b):
-            for x in range(0, w - b, b):
+        for y in range(0, h - b, step):
+            for x in range(0, w - b, step):
                 block = img[y : y + b, x : x + b].astype(np.float32)
                 dct = cv2.dct(block)
-                # Use top-left 4×4 AC coefficients as hash key
-                key = dct[:4, :4].tobytes()
+                
+                # Use top-left 4x4 low-frequency coefficients, quantize to be robust to compression
+                # Quantization factor (e.g., 10)
+                quantized = np.round(dct[:4, :4] / 10.0) 
+                
+                key = quantized.tobytes()
                 if key in blocks:
                     duplicates += 1
                 else:

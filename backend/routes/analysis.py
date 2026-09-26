@@ -16,6 +16,8 @@ from services.validation_service import validate_document
 from services.tamper.tampering_service import analyze_tampering
 from services.face_service import verify_faces
 from services.risk_service import calculate_risk
+from services.quality_service import analyze_image_quality
+from services.template_service import analyze_document_layout
 
 router = APIRouter()
 
@@ -80,25 +82,42 @@ async def analyze_document(
 
     try:
         # 4. Call REAL services
+        quality_data = analyze_image_quality(doc_path)
         ocr_data = extract_document_data(doc_path, doc_type_lower)
+        template_data = analyze_document_layout(doc_path, doc_type_lower)
         validation_data = validate_document(ocr_data, doc_type_lower)
         tampering_data = analyze_tampering(doc_path)
-
-        # 5. Call REAL services
         face_data = verify_faces(doc_path, face_path)
-        risk_data = calculate_risk(ocr_data, validation_data, tampering_data, face_data)
+        
+        # 5. Risk calculation fuses everything
+        risk_data = calculate_risk(
+            ocr_data, 
+            validation_data, 
+            tampering_data, 
+            face_data, 
+            quality_data, 
+            template_data
+        )
 
         screening_id = f"SCR-{str(uuid.uuid4())[:8].upper()}"
 
-        return {
+        result = {
             "screening_id": screening_id,
             "document_type": doc_type_lower,
             "ocr": ocr_data,
             "validation": validation_data,
             "tampering": tampering_data,
             "face_verification": face_data,
-            "risk": risk_data
+            "risk": risk_data,
+            "quality": quality_data,
+            "template": template_data
         }
+        
+        # Log to audit trail
+        from services.audit_service import log_screening
+        log_screening(result)
+        
+        return result
 
     except Exception as e:
         logger.error("Analysis pipeline error: %s", e, exc_info=True)
@@ -110,3 +129,9 @@ async def analyze_document(
             os.remove(doc_path)
         if face_path and os.path.exists(face_path):
             os.remove(face_path)
+
+@router.get("/audit")
+def get_audit_logs(limit: int = 50):
+    from services.audit_service import get_recent_audit_logs
+    return {"logs": get_recent_audit_logs(limit)}
+
