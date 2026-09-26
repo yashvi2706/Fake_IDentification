@@ -24,6 +24,7 @@ app.add_middleware(
         "https://fake-i-dentification.vercel.app",
         "https://fake-i-dentification-p5o4.vercel.app",
     ],
+    allow_origin_regex=r"https://fake-i-dentification.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
