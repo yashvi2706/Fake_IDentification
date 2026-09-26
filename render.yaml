@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: fake-identification-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: |
+      apt-get install -y tesseract-ocr tesseract-ocr-eng libsm6 libxext6 libxrender-dev &&
+      pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: UPLOAD_DIR
+        value: ./tmp_uploads
+    autoDeploy: true

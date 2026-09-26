@@ -18,10 +18,11 @@ import cv2
 import numpy as np
 
 try:
-    import easyocr
-    EASYOCR_AVAILABLE = True
+    import pytesseract
+    from pytesseract import Output
+    TESSERACT_AVAILABLE = True
 except ImportError:
-    EASYOCR_AVAILABLE = False
+    TESSERACT_AVAILABLE = False
 
 # Resolve imports whether run from backend/ or from project root
 try:
@@ -33,21 +34,8 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Module-level EasyOCR reader (lazy-initialized to avoid startup cost)
+# Tesseract OCR — no model download, uses system binary
 # ---------------------------------------------------------------------------
-_reader: Optional[Any] = None
-
-
-def _get_reader() -> Any:
-    """Lazy-initialize the EasyOCR reader singleton."""
-    global _reader
-    if _reader is None:
-        if not EASYOCR_AVAILABLE:
-            raise RuntimeError(
-                "easyocr is not installed. Install it with: pip install easyocr"
-            )
-        _reader = easyocr.Reader(["en"], gpu=False, verbose=False)
-    return _reader
 
 
 # ===================================================================
@@ -163,12 +151,33 @@ def _preprocess_image(image_path: str) -> np.ndarray:
 
 def _run_ocr(image: np.ndarray) -> List[Tuple]:
     """
-    Run EasyOCR on a preprocessed image.
+    Run Tesseract OCR on a preprocessed image.
 
-    Returns list of (bbox, text, confidence) tuples.
+    Returns list of (bbox, text, confidence) tuples compatible with the
+    downstream EasyOCR-shaped processing code.
     """
-    reader = _get_reader()
-    results = reader.readtext(image, detail=1, paragraph=False)
+    if not TESSERACT_AVAILABLE:
+        raise RuntimeError(
+            "pytesseract is not installed. Add it to requirements.txt."
+        )
+
+    # Tesseract config: PSM 6 (assume a uniform block of text) + OEM 3 (LSTM)
+    config = "--oem 3 --psm 6"
+    data = pytesseract.image_to_data(
+        image, config=config, output_type=Output.DICT
+    )
+
+    results: List[Tuple] = []
+    n = len(data["text"])
+    for i in range(n):
+        text = data["text"][i].strip()
+        conf_raw = data["conf"][i]
+        if not text or conf_raw == -1:
+            continue
+        conf = float(conf_raw) / 100.0  # Tesseract gives 0-100, normalise to 0-1
+        x, y, w, h = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
+        bbox = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+        results.append((bbox, text, conf))
     return results
 
 
