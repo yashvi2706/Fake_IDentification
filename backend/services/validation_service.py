@@ -158,9 +158,9 @@ def _validate_passport(data: Dict[str, Any]) -> List[Dict[str, str]]:
             checks.append(_warn("Gender value",
                                 f"Gender value '{gender}' is not a standard code (M/F/X)"))
 
-    # 8. MRZ format check
+    # 8. MRZ format check and cross-checks
     raw_text = data.get("raw_text", "")
-    checks.extend(_check_mrz(raw_text))
+    checks.extend(_check_mrz(raw_text, data))
 
     return checks
 
@@ -299,90 +299,83 @@ def _validate_generic_id(data: Dict[str, Any], document_type: str) -> List[Dict[
 #  MRZ VALIDATION
 # ===================================================================
 
-def _check_mrz(raw_text: str) -> List[Dict[str, str]]:
-    """Validate MRZ format and checksums if MRZ lines are present."""
+def _check_mrz(raw_text: str, extracted_data: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Validate MRZ format and checksums using the mrz library, and cross-check with visual OCR."""
     checks: List[Dict[str, str]] = []
 
     if not raw_text:
         return checks
 
     # Look for MRZ-like lines
-    mrz_pattern = re.compile(r'[A-Z0-9<]{40,50}')
+    mrz_pattern = re.compile(r'[A-Z0-9<]{44}')
     text_no_spaces = raw_text.replace(" ", "")
-    matches = mrz_pattern.findall(text_no_spaces)
-
-    mrz_lines = [m[:44] for m in matches if len(m) >= 42]
-
+    
+    # Try to find exactly 44-char lines first
+    lines = raw_text.split('\n')
+    mrz_lines = []
+    for line in lines:
+        clean = line.replace(" ", "").upper()
+        if len(clean) >= 42 and '<' in clean:
+            # Pad or truncate to 44
+            clean = clean[:44].ljust(44, '<')
+            if re.match(r'^[A-Z0-9<]{44}$', clean):
+                mrz_lines.append(clean)
+                
     if len(mrz_lines) < 2:
-        # No MRZ detected — not a failure, just skip
         return checks
 
-    checks.append(_pass("MRZ presence",
-                        "Machine Readable Zone (MRZ) lines detected"))
+    checks.append(_pass("MRZ presence", "Machine Readable Zone (MRZ) lines detected"))
 
-    # Validate line 2 checksums
-    line2 = mrz_lines[-1].ljust(44, "<")
+    try:
+        from mrz.checker.td3 import TD3CodeChecker
+        checker = TD3CodeChecker(mrz_lines[-2] + "\n" + mrz_lines[-1])
+        
+        # Checksums
+        if checker.document_number_hash():
+            checks.append(_pass("MRZ document number check", "MRZ document number check digit is valid"))
+        else:
+            checks.append(_fail("MRZ document number check", "MRZ document number check digit mismatch"))
+            
+        if checker.birth_date_hash():
+            checks.append(_pass("MRZ Birth date check", "MRZ date of birth check digit is valid"))
+        else:
+            checks.append(_fail("MRZ Birth date check", "MRZ DOB check digit mismatch"))
+            
+        if checker.expiry_date_hash():
+            checks.append(_pass("MRZ Expiry date check", "MRZ expiry date check digit is valid"))
+        else:
+            checks.append(_fail("MRZ Expiry date check", "MRZ expiry check digit mismatch"))
+            
+        if bool(checker):
+            checks.append(_pass("MRZ Composite check", "MRZ overall composite checksum is valid"))
+        else:
+            checks.append(_fail("MRZ Composite check", "MRZ overall composite checksum mismatch"))
+            
+        # Cross-checks with visual data
+        fields = checker.fields()
+        
+        # Doc number cross check
+        visual_doc_num = extracted_data.get("document_number")
+        if visual_doc_num and visual_doc_num != fields.document_number:
+            checks.append(_warn("Visual vs MRZ Document Number", "Visual OCR document number does not match MRZ"))
+        elif visual_doc_num:
+            checks.append(_pass("Visual vs MRZ Document Number", "Visual OCR document number matches MRZ"))
 
-    # Document number check digit (position 9, data 0-8)
-    if len(line2) > 9 and line2[9].isdigit():
-        expected = _mrz_checksum(line2[0:9])
-        actual = int(line2[9])
-        if expected is not None:
-            if expected == actual:
-                checks.append(_pass("MRZ document number checksum",
-                                    "MRZ document number check digit is valid"))
-            else:
-                checks.append(_fail("MRZ document number checksum",
-                                    f"MRZ document number check digit mismatch "
-                                    f"(expected {expected}, got {actual})"))
-
-    # DOB check digit (position 19, data 13-18)
-    if len(line2) > 19 and line2[19].isdigit():
-        expected = _mrz_checksum(line2[13:19])
-        actual = int(line2[19])
-        if expected is not None:
-            if expected == actual:
-                checks.append(_pass("MRZ DOB checksum",
-                                    "MRZ date of birth check digit is valid"))
-            else:
-                checks.append(_fail("MRZ DOB checksum",
-                                    f"MRZ DOB check digit mismatch "
-                                    f"(expected {expected}, got {actual})"))
-
-    # Expiry check digit (position 27, data 21-26)
-    if len(line2) > 27 and line2[27].isdigit():
-        expected = _mrz_checksum(line2[21:27])
-        actual = int(line2[27])
-        if expected is not None:
-            if expected == actual:
-                checks.append(_pass("MRZ expiry checksum",
-                                    "MRZ expiry date check digit is valid"))
-            else:
-                checks.append(_fail("MRZ expiry checksum",
-                                    f"MRZ expiry check digit mismatch "
-                                    f"(expected {expected}, got {actual})"))
+        # DOB cross check
+        visual_dob = extracted_data.get("date_of_birth")
+        mrz_dob = fields.birth_date # YYMMDD
+        if visual_dob and mrz_dob:
+            parsed_vis_dob = parse_date(str(visual_dob))
+            if parsed_vis_dob and parsed_vis_dob.strftime("%y%m%d") != mrz_dob:
+                 checks.append(_warn("Visual vs MRZ DOB", "Visual OCR date of birth does not match MRZ"))
+            elif parsed_vis_dob:
+                 checks.append(_pass("Visual vs MRZ DOB", "Visual OCR date of birth matches MRZ"))
+                 
+    except Exception as e:
+        logger.debug(f"MRZ advanced parsing failed: {e}")
+        checks.append(_warn("MRZ parsing", "Failed to parse MRZ fully for checksum verification"))
 
     return checks
-
-
-def _mrz_checksum(data: str) -> Optional[int]:
-    """Compute ICAO 9303 MRZ check digit."""
-    try:
-        weights = [7, 3, 1]
-        total = 0
-        for i, ch in enumerate(data):
-            if ch.isdigit():
-                val = int(ch)
-            elif ch.isalpha():
-                val = ord(ch.upper()) - ord("A") + 10
-            elif ch == "<":
-                val = 0
-            else:
-                val = 0
-            total += val * weights[i % 3]
-        return total % 10
-    except Exception:
-        return None
 
 
 # ===================================================================

@@ -1,67 +1,83 @@
 """
-Face verification service using lightweight OpenCV (no ML model downloads).
+Face verification service using OpenCV YuNet (detection) and SFace (recognition).
 
 Strategy:
-  1. Detect faces in both images using Haar cascades (built into opencv-headless).
-  2. Extract ORB keypoint descriptors from each detected face crop.
-  3. Match descriptors with BFMatcher and derive a similarity score.
+  1. Download lightweight ONNX models (YuNet and SFace) on first run if missing.
+  2. Detect faces using YuNet (much stronger than Haar cascades).
+  3. Extract 128D face embeddings using SFace.
+  4. Compare embeddings using cosine similarity.
 
-Memory footprint: ~5 MB (Haar XML bundled with OpenCV). No PyTorch / TF needed.
+Memory footprint: ~30 MB. No heavy ML frameworks needed. Very stable for Render free tier.
 """
-from typing import Dict, Any, Optional
+import os
+import urllib.request
 import logging
+from typing import Dict, Any, Optional, Tuple
 import cv2
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# OpenCV ships the cascade XML; no download needed.
-_FACE_CASCADE = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
+YUNET_PATH = os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx")
+SFACE_PATH = os.path.join(MODELS_DIR, "face_recognition_sface_2021dec.onnx")
 
+YUNET_URL = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+SFACE_URL = "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx"
 
-def _detect_face(image_path: str) -> Optional[np.ndarray]:
-    """Return a grayscale face crop (resized to 100×100) or None."""
+_detector = None
+_recognizer = None
+
+def _download_model(url: str, path: str):
+    if not os.path.exists(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        logger.info(f"Downloading model {os.path.basename(path)}...")
+        urllib.request.urlretrieve(url, path)
+        logger.info(f"Downloaded {os.path.basename(path)}")
+
+def _get_models():
+    global _detector, _recognizer
+    if _detector is None or _recognizer is None:
+        _download_model(YUNET_URL, YUNET_PATH)
+        _download_model(SFACE_URL, SFACE_PATH)
+        
+        # Initialize YuNet
+        _detector = cv2.FaceDetectorYN_create(
+            YUNET_PATH,
+            "",
+            (320, 320),
+            0.8,
+            0.3,
+            5000
+        )
+        # Initialize SFace
+        _recognizer = cv2.FaceRecognizerSF_create(SFACE_PATH, "")
+    return _detector, _recognizer
+
+def _get_face_embedding(image_path: str) -> Optional[Tuple[np.ndarray, float]]:
+    """Detects face and returns (embedding, quality_score)."""
+    detector, recognizer = _get_models()
+    
     img = cv2.imread(image_path)
     if img is None:
         return None
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    faces = _FACE_CASCADE.detectMultiScale(
-        gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40)
-    )
-    if len(faces) == 0:
+        
+    h, w, _ = img.shape
+    detector.setInputSize((w, h))
+    
+    _, faces = detector.detect(img)
+    if faces is None or len(faces) == 0:
         return None
-    # Use the largest detected face
-    x, y, w, h = max(faces, key=lambda r: r[2] * r[3])
-    crop = gray[y : y + h, x : x + w]
-    return cv2.resize(crop, (100, 100))
-
-
-def _orb_similarity(face1: np.ndarray, face2: np.ndarray) -> float:
-    """
-    Compare two face crops using ORB descriptors + BFMatcher.
-    Returns a similarity score in [0.0, 1.0].
-    """
-    orb = cv2.ORB_create(nfeatures=500)
-    kp1, des1 = orb.detectAndCompute(face1, None)
-    kp2, des2 = orb.detectAndCompute(face2, None)
-
-    if des1 is None or des2 is None or len(kp1) < 5 or len(kp2) < 5:
-        return 0.0
-
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(des1, des2)
-    if not matches:
-        return 0.0
-
-    # Good matches: distance < 60 out of max 256
-    good = [m for m in matches if m.distance < 60]
-    ratio = len(good) / max(len(matches), 1)
-    # Scale: >0.35 good match, <0.10 poor match
-    similarity = min(1.0, ratio / 0.35)
-    return round(similarity, 2)
-
+        
+    # Get the face with highest confidence (faces format: [x, y, w, h, x_re, y_re, x_le, y_le, x_nt, y_nt, x_rcm, y_rcm, x_lcm, y_lcm, score])
+    face = max(faces, key=lambda f: f[-1])
+    confidence = float(face[-1])
+    
+    # Align crop and extract features
+    aligned_face = recognizer.alignCrop(img, face)
+    embedding = recognizer.feature(aligned_face)
+    
+    return embedding, confidence
 
 def verify_faces(
     document_image_path: str, live_face_image_path: Optional[str]
@@ -69,19 +85,34 @@ def verify_faces(
     """Verify that the face on the document matches the traveller selfie."""
     if not live_face_image_path:
         return {
+            "available": True,
+            "face_detected_document": None,
+            "face_detected_live": None,
+            "match": None,
+            "similarity": None,
+            "quality_document": None,
+            "quality_live": None,
+            "message": "Traveller face image not provided",
+        }
+
+    try:
+        doc_result = _get_face_embedding(document_image_path)
+        live_result = _get_face_embedding(live_face_image_path)
+    except Exception as e:
+        logger.error(f"Face verification error: {e}")
+        return {
             "available": False,
             "face_detected_document": None,
             "face_detected_live": None,
             "match": None,
             "similarity": None,
-            "message": "Traveller face image not provided",
+            "quality_document": None,
+            "quality_live": None,
+            "message": "Face verification failed internally",
         }
 
-    face_doc = _detect_face(document_image_path)
-    face_live = _detect_face(live_face_image_path)
-
-    doc_detected = face_doc is not None
-    live_detected = face_live is not None
+    doc_detected = doc_result is not None
+    live_detected = live_result is not None
 
     if not doc_detected or not live_detected:
         return {
@@ -90,19 +121,34 @@ def verify_faces(
             "face_detected_live": live_detected,
             "match": False,
             "similarity": 0.0,
+            "quality_document": doc_result[1] if doc_detected else 0.0,
+            "quality_live": live_result[1] if live_detected else 0.0,
             "message": "Face not detected in one or both images",
         }
 
-    similarity = _orb_similarity(face_doc, face_live)
-    # Threshold chosen to balance FP/FN on passport-style photos
-    is_match = similarity >= 0.45
+    doc_embedding, doc_quality = doc_result
+    live_embedding, live_quality = live_result
+
+    # SFace returns L2 normalized embeddings, so cosine similarity is just dot product
+    # Or use recognizer.match
+    recognizer = _get_models()[1]
+    # match type: 0 for cosine, 1 for L2
+    similarity = recognizer.match(doc_embedding, live_embedding, cv2.FaceRecognizerSF_FR_COSINE)
+    
+    # SFace cosine similarity threshold is typically around 0.363 for true positive rate
+    is_match = similarity >= 0.363
+    
+    # Scale similarity to look more intuitive (0.363 -> ~0.7, 1.0 -> 1.0)
+    # This is optional but helps with user interpretation.
+    scaled_sim = min(1.0, max(0.0, (similarity + 0.5) / 1.5)) if similarity > 0 else 0.0
 
     return {
         "available": True,
         "face_detected_document": True,
         "face_detected_live": True,
         "match": is_match,
-        "similarity": similarity,
-        "message": "Faces appear to match" if is_match else "Faces do not match sufficiently",
+        "similarity": float(scaled_sim),
+        "quality_document": float(doc_quality),
+        "quality_live": float(live_quality),
+        "message": "Faces appear to match" if is_match else "Face mismatch detected",
     }
-

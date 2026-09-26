@@ -80,6 +80,26 @@ class RiskResult(BaseModel):
     reasons: List[RiskReason] = Field(default_factory=list)
 
 
+# -- Quality ------------------------------------------------------------
+
+class QualityResult(BaseModel):
+    score: float = 0.0
+    acceptable: bool = True
+    blur_score: float = 0.0
+    glare_score: float = 0.0
+    brightness_score: float = 0.0
+    resolution_ok: bool = True
+    document_visible: bool = True
+    issues: List[str] = Field(default_factory=list)
+
+# -- Template/Layout --------------------------------------------------
+
+class TemplateResult(BaseModel):
+    available: bool = False
+    score: float = 0.0
+    layout_consistent: Optional[bool] = None
+    checks: List[ValidationCheck] = Field(default_factory=list)
+
 # -- Unified Response -------------------------------------------------
 
 class AnalysisResponse(BaseModel):
@@ -91,7 +111,8 @@ class AnalysisResponse(BaseModel):
     tampering: TamperingResult
     face_verification: FaceVerificationResult
     risk: RiskResult
-
+    quality: Optional[QualityResult] = None
+    template: Optional[TemplateResult] = None
 
 # -- Error response helper --------------------------------------------
 
