@@ -1,50 +1,70 @@
 # AI-Based Fake Identity & Document Screening System
 
-This repository contains the foundational structure and scaffolding for the Smart India Hackathon (Ministry of Home Affairs / SSB, theme: Blockchain & Cybersecurity).
+This repository contains the integrated final implementation for the Smart India Hackathon project.
 
-## Repository Structure
+## Modules Included
 
-The project maps to the SIH architecture modules as follows:
+- **OCR Extraction**: Extracts text and structural data from uploaded documents.
+- **Document Validation**: Performs rule-based validation on extracted fields (e.g. expiry checks).
+- **Tampering Detection**: Analyzes image metadata, compression, and visual features to identify manipulation.
+- **Face Verification**: Compares a traveler's live face image with the face detected in the document.
+- **Risk Scoring**: Evaluates the results from the above modules to calculate a unified risk score.
+
+## Final System Structure
+
 - `frontend/` - React + Vite + TypeScript application for the Officer UI (Dashboard, Upload).
-- `backend/gateway/` - FastAPI API Gateway handling JWT auth, role-based access, and DB management.
-- `backend/services/ocr/` - OCR Extraction Module (Mocked).
-- `backend/services/validation/` - Document Validation Module (Mocked).
-- `backend/services/tamper/` - Tampering Detection Module (Mocked).
-- `backend/services/face/` - Face Verification Module (Mocked).
-- `backend/services/risk/` - Risk Scoring Engine (Mocked).
-- `ml/training/` - Placeholder for AI model training notebooks and scripts.
-- `ml/data/` - Placeholder for synthetic dataset generation scripts.
-- `infra/` - Infrastructure configuration (currently Docker Compose sits at the root).
-- `docs/` - Contains the full `SIH_Project_Plan.txt` for reference.
+- `backend/` - FastAPI backend implementing the core AI analysis modules (`main.py` entrypoint).
 
-## Running Locally
+## How to Run
 
-### Prerequisites
-- Docker and Docker Compose
-- Node.js (for frontend dev server)
+### 1. Run the Backend
 
-### 1. Run the Backend & Database
-From the root of the project, run:
+Open a terminal and set up the backend:
+
 ```bash
-docker-compose up --build
+cd backend
+python -m venv .venv
+# Activate environment:
+# On Windows: .venv\Scripts\activate
+# On Mac/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload
 ```
-This will start PostgreSQL, Redis, the API Gateway on port `8000`, and the 5 microservices on ports `8001` through `8005`.
 
-- Gateway Docs: http://localhost:8000/docs
-- OCR Docs: http://localhost:8001/docs
-- Validation Docs: http://localhost:8002/docs
-- Tamper Docs: http://localhost:8003/docs
-- Face Docs: http://localhost:8004/docs
-- Risk Docs: http://localhost:8005/docs
+The FastAPI backend will be available at http://localhost:8000.
+API Documentation: http://localhost:8000/docs
 
-### 2. Run the Frontend Shell
-In a new terminal window:
+### 2. Run the Frontend
+
+Open a second terminal:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
 The React frontend will be available at http://localhost:5173.
 
-## Note on Implementation
-Currently, all AI services return a mock JSON response (including mock explainability payloads) to ensure the REST API shapes are established and the frontend shell is clickable end-to-end. Next steps involve building the actual AI modules (starting with OCR and Validation).
+### Required Environment Variables
+
+**Frontend (`frontend/.env`)**:
+```
+VITE_USE_MOCK_API=false
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+### Supported Document Types
+
+- passport
+- visa
+- national_id
+- driving_license
+- permit
+
+### Known Limitations
+
+- Tampering detection relies on basic Error Level Analysis (ELA) and ResNet embeddings. Accuracy may vary depending on image quality.
+- Face verification relies on the DeepFace VGG-Face model.
+- OCR relies on EasyOCR.
+- This is an AI-assisted decision support prototype. It does not integrate with any real government databases or actual border watchlists.

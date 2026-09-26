@@ -8,11 +8,9 @@ import os
 from typing import Optional
 
 from schemas.analysis import AnalysisResponse, ErrorDetail
-from services.mock_services import (
-    mock_extract_document_data,
-    mock_validate_document,
-    mock_analyze_tampering
-)
+from services.ocr_service import extract_document_data
+from services.validation_service import validate_document
+from services.tamper.tampering_service import analyze_tampering
 from services.face_service import verify_faces
 from services.risk_service import calculate_risk
 
@@ -78,10 +76,10 @@ async def analyze_document(
             raise HTTPException(status_code=500, detail="Failed to save face image")
 
     try:
-        # 4. Call mock services (to be replaced on integration)
-        ocr_data = mock_extract_document_data(doc_path, doc_type_lower)
-        validation_data = mock_validate_document(ocr_data, doc_type_lower)
-        tampering_data = mock_analyze_tampering(doc_path)
+        # 4. Call REAL services
+        ocr_data = extract_document_data(doc_path, doc_type_lower)
+        validation_data = validate_document(ocr_data, doc_type_lower)
+        tampering_data = analyze_tampering(doc_path)
 
         # 5. Call REAL services
         face_data = verify_faces(doc_path, face_path)

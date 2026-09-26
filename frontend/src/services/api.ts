@@ -21,7 +21,8 @@ export const analyzeDocument = async (
   }
   formData.append('document_type', documentType);
 
-  const response = await fetch('/api/analyze', {
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+  const response = await fetch(`${API_BASE}/api/analyze`, {
     method: 'POST',
     body: formData,
   });
