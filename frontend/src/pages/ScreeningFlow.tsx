@@ -23,7 +23,9 @@ export default function ScreeningFlow() {
       setResults(data);
       setCurrentStep('results');
     } catch (err) {
-      setError('Analysis failed. Please try again.');
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[ScreeningFlow] Analysis error:', err);
+      setError(`Analysis failed: ${message}`);
       setCurrentStep('upload');
     }
   };

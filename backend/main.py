@@ -21,7 +21,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
-        "https://fake-i-dentification.vercel.app"
+        "https://fake-i-dentification.vercel.app",
+        "https://fake-i-dentification-p5o4.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],

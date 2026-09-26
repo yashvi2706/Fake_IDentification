@@ -5,7 +5,10 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 import shutil
 import uuid
 import os
+import logging
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from schemas.analysis import AnalysisResponse, ErrorDetail
 from services.ocr_service import extract_document_data
@@ -98,7 +101,8 @@ async def analyze_document(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal analysis error")
+        logger.error("Analysis pipeline error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal analysis error: {type(e).__name__}: {e}")
     
     finally:
         # 6. Clean temporary files

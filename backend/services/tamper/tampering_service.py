@@ -126,7 +126,19 @@ def _analyze(image_path: str) -> Dict[str, Any]:
     else:
         level = "HIGH"
 
-    return {"score": score, "level": level, "signals": signals}
+    return {
+        # Schema-required fields (used by frontend)
+        "score": float(score),
+        "suspicious": score >= SUSPICIOUS_THRESHOLD,
+        "photo_replacement": cm_score >= 50.0,
+        "text_manipulation": ela_score >= ELA_HIGH_THRESH * 3,  # very high ELA = likely text edit
+        "metadata_anomaly": meta_score >= 30.0,
+        "compression_anomaly": ela_score >= ELA_MED_THRESH * 2,
+        "indicators": [s["detail"] for s in signals if s["score"] > 0],
+        # Extra context (ignored by schema but logged server-side)
+        "level": level,
+        "signals": signals,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
